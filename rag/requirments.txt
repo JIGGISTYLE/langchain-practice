@@ -1,0 +1,15 @@
+langchain-google-genai
+langchain_core
+langchain-ollama
+python-dotenv
+streamlit
+langchain-text-splitters
+langchain_community
+langserve
+fastapi
+uvicorn
+streamlit
+sse_starlette
+bs4
+pypdf
+faiss-cpu
