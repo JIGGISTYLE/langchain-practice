@@ -1,46 +1,51 @@
 # pyrefly: ignore [missing-import]
-from dotenv import load_dotenv
-import os 
-
-# pyrefly: ignore [missing-import]
-from langchain_community.document_loaders import PyPDFLoader
-
-# pyrefly: ignore [missing-import]
-from langchain_text_splitters import RecursiveCharacterTextSplitter
-
-# pyrefly: ignore [missing-import]
-from langchain_ollama import OllamaEmbeddings
-
-# pyrefly: ignore [missing-import]
 from langchain_chroma import Chroma
 # pyrefly: ignore [missing-import]
 import chromadb
+# pyrefly: ignore [missing-import]
+from langchain_ollama import OllamaEmbeddings # for embedding
+# pyrefly: ignore [missing-import]
+from langchain_core.prompts import ChatPromptTemplate
+# pyrefly: ignore [missing-import]
+from langchain_community.llms import Ollama
+# pyrefly: ignore [missing-import]
+from langchain_classic.chains.combine_documents import create_stuff_documents_chain
+# pyrefly: ignore [missing-import]
+from langchain_classic.chains import create_retrieval_chain
+# pyrefly: ignore [missing-import]
+import streamlit as st
 
-load_dotenv()
-os.environ["LANGCHAIN_API_KEY"]=os.getenv("LANGCHAIN_API_KEY")
-os.environ["GOOGLE_API_KEY"]=os.getenv("GOOGLE_API_KEY")
-os.environ["LANGCHAIN_PROJECT"]=os.getenv("LANGCHAIN_PROJECT")
-os.environ["LANGCHAIN_TRACING_V2"]="true"
+# reconnect the vector databse 
+embedding = OllamaEmbeddings(model="nomic-embed-text")
+chroma_client = chromadb.HttpClient(host="localhost", port=8000)
+db = Chroma(
+    client=chroma_client,
+    collection_name="attention_paper",
+    embedding_function=embedding,
+)
+# retriever
+retriever=db.as_retriever(search_kwargs={"k":4})
+#promt
+promt = ChatPromptTemplate.from_template("""
+        answer the following question only based on the following context.
+        if the answer isn't in the context , say you dont know.
 
-#loader
-loader=PyPDFLoader("attention.pdf")
-docs=loader.load() # 11 pages
-#spliter
-text_splitter=RecursiveCharacterTextSplitter(chunk_size=1000,chunk_overlap=200)
-chunks=text_splitter.split_documents(docs)
-# embedding
-embedding=OllamaEmbeddings(model="nomic-embed-text")
+        context:{context}
 
-# vector db 
-chroma_client = chromadb.HttpClient(host="localhost",port=8000)
-db=Chroma(client=chroma_client,
-        collection_name="attention_paper",
-        embedding_function=embedding )
-db.add_documents(chunks)
+        question:{input}
+""")
+#llm
+llm=Ollama(model="qwen2.5-coder:3b")
 
-#querry and result
-query = "What is scaled dot-product attention?"
-results = db.similarity_search(query, k=3)
+# chain : retriever+promt+llm
+document_chain=create_stuff_documents_chain(llm,promt)
+rag_chain=create_retrieval_chain(retriever,document_chain)
 
-print(results[0].page_content)
-print("Total vectors in collection:", db._collection.count())
+# streamlit frontend
+
+st.title("ask questions from attention paper")
+query=st.text_input("enter your question here")
+
+if query:
+    result=rag_chain.invoke({"input":query})
+    st.write(result["answer"])
