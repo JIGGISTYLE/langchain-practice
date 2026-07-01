@@ -1,1 +1,1 @@
-RAG chatbot using fastapi,streamlit,langchain,ollama local models aand chat history in postgres 
+RAG chatbot using fastapi,streamlit,langchain,ollama local models , chromaDB image used in docker and chat history in postgres 
